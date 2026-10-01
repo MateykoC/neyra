@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neyra Servicios | Catálogo Editable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- Firebase SDK (Versión Compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<!-- jsPDF y html2canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+  :root{
+    --dark1:#0a192f; --dark2:#1e3c72; --dark3:#2a5298;
+    --orange:#f39c12; --green:#25d366;
+    --bg-block:#f8fafc; --white:#ffffff; --border:#e2e8f0;
+    --text-dark:#0f1f38; --text-muted:#5b6b82;
+    --page-w:900px; --page-h:1270px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'Roboto',sans-serif; background:#dfe6ee; color:var(--text-dark);}
+
+  /* ===== PANTALLA DE LOGIN ===== */
+  #loginOverlay { position:fixed; top:0; left:0; width:100%; height:100%; background:var(--dark1); z-index:9999; 
+    display:flex; align-items:center; justify-content:center; flex-direction:column; color:#fff; transition:opacity 0.3s;}
+  .login-box { background:#fff; color:var(--dark1); padding:40px; border-radius:8px; width:100%; max-width:380px; box-shadow:0 10px 25px rgba(0,0,0,0.5); }
+  .login-box h2 { margin:0 0 20px; font-size:20px; text-align:center; color:var(--dark2); }
+  .login-box input { width:100%; padding:12px; margin-bottom:15px; border:1px solid #ccc; border-radius:4px; font-size:14px; }
+  .login-box button { width:100%; background:var(--orange); color:#fff; border:none; padding:12px; font-weight:700; font-size:15px; border-radius:4px; cursor:pointer; transition:0.2s;}
+  .login-box button:hover { filter:brightness(1.1); }
+  .login-error { color:#c0392b; font-size:12px; margin-bottom:10px; display:none; text-align:center; font-weight:700; }
+  #appContainer { display:none; } /* Oculto hasta login */
+
+  /* ===== TOOLBAR ===== */
+  #toolbar{position:fixed; top:0; left:0; right:0; z-index:990; background:var(--dark1);
+    padding:12px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+    box-shadow:0 2px 12px rgba(0,0,0,.25); flex-wrap:wrap;}
+  #toolbar .brand{color:#fff; font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px;}
+  #toolbar .brand i{color:var(--orange);}
+  
+  .cloud-status { color:#a8b2d1; font-size:12px; display:flex; align-items:center; gap:6px; font-weight:700; }
+  .cloud-status.saved { color:var(--green); }
+  .cloud-status.error { color:#e74c3c; }
+
+  #toolbar .actions{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .t-divider { width:1px; height:24px; background:rgba(255,255,255,0.2); margin:0 4px;}
+
+  .tbtn{border:none; padding:10px 18px; border-radius:6px; font-weight:700; font-size:13px;
+    cursor:pointer; display:flex; align-items:center; gap:8px; transition:filter .15s ease, background .15s ease;}
+  .tbtn:hover{filter:brightness(1.08);}
+  .tbtn:disabled{opacity:.65; cursor:wait;}
+  .mode-btn{background:#33475f; color:#fff;}
+  .mode-btn.active{background:var(--orange); color:#fff;}
+  #exportBtn{background:var(--orange); color:#fff;}
+  .btn-logout{background:transparent; color:#a8b2d1; padding:10px; border:1px solid #a8b2d1;}
+  .btn-logout:hover { background:rgba(255,255,255,0.1); color:#fff; }
+
+  #layout{display:flex; align-items:flex-start; padding-top:70px;}
+
+  /* ===== EDITOR PANEL ===== */
+  #editorPanel{width:400px; min-width:400px; max-height:calc(100vh - 70px); overflow-y:auto;
+    background:#fff; border-right:1px solid var(--border); padding:18px; display:none;}
+  #layout.mode-edit #editorPanel{display:block; width:100%; min-width:0; max-width:1040px; margin:0 auto;
+    border-right:none; max-height:none; padding:24px 30px 80px;}
+  #layout.mode-preview #editorPanel{display:none;}
+  #layout.mode-preview #previewArea{display:block;}
+  #layout.mode-edit #previewArea{display:none;}
+  #editorPanel h2{font-size:15px; color:var(--dark1); margin:0 0 12px; text-transform:uppercase; letter-spacing:.5px;}
+  .ed-global{background:var(--bg-block); border-radius:6px; padding:12px; margin-bottom:18px;}
+  .ed-field{margin-bottom:10px;}
+  .ed-field label{display:block; font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase;}
+  .ed-field input[type=text], .ed-field input[type=url], .ed-field textarea{
+    width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:4px; font-size:12.5px; font-family:inherit;}
+  .ed-field textarea{resize:vertical;}
+  .ed-category{border:1px solid var(--border); border-radius:6px; margin-bottom:14px; overflow:hidden;}
+  .ed-category-head{background:var(--bg-block); padding:8px 10px; display:flex; align-items:center; gap:6px;}
+  .ed-category-head input[type=text]{flex:1; font-weight:700; font-size:12.5px; padding:6px 8px; border:1px solid var(--border); border-radius:4px;}
+  .ed-icon-btn{background:none; border:1px solid var(--border); border-radius:4px; width:28px; height:28px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-muted); flex-shrink:0;}
+  .ed-icon-btn:hover{background:#eef2f7;}
+  .ed-icon-btn.danger:hover{background:#fde2e2; color:#c0392b;}
+  .ed-icon-btn.active{color:var(--dark3);}
+  .ed-category-body{padding:10px;}
+
+  /* ===== ACORDEÓN ===== */
+  .ed-intro{background:#eef4fb; border:1px solid #d7e6f7; border-radius:6px; padding:10px 12px;
+    font-size:12px; color:var(--dark2); line-height:1.5; margin-bottom:14px; display:flex; gap:8px; align-items:flex-start;}
+  .ed-intro i{margin-top:1px; flex-shrink:0;}
+  .ed-toggle-btn{background:none; border:none; padding:0; cursor:pointer; display:flex; align-items:center;
+    justify-content:center; width:22px; height:22px; flex-shrink:0; color:var(--dark2);}
+  .ed-toggle-btn i{transition:transform .18s ease;}
+  .ed-toggle-btn.is-open i{transform:rotate(90deg);}
+  .ed-section{border:1px solid var(--border); border-radius:6px; margin-bottom:14px; overflow:hidden; background:#fff;}
+  .ed-section-head{background:linear-gradient(90deg,#eef4fb,#f5f8fc); padding:12px 12px; display:flex;
+    align-items:center; gap:8px; cursor:pointer; user-select:none;}
+  .ed-section-head:hover{background:#e5eef9;}
+  .ed-section-title{flex:1; font-size:13px; font-weight:800; color:var(--dark1); display:flex; align-items:center; gap:8px;}
+  .ed-section-title i{color:var(--dark3);}
+  .ed-section-sub{font-size:10.5px; font-weight:600; color:var(--text-muted); text-transform:none;}
+  .ed-section-body{padding:12px;}
+  .ed-sub-collapsible{border:1px dashed var(--border); border-radius:5px; margin-bottom:8px; background:#fcfdfe; overflow:hidden;}
+  .ed-sub-head{display:flex; align-items:center; gap:6px; padding:8px 9px; cursor:pointer; background:#fafbfc;}
+  .ed-sub-head:hover{background:#f1f5fa;}
+  .ed-sub-head input[type=text]{flex:1;}
+  .ed-sub-body{padding:0 9px 9px;}
+  .ed-product{border:1px dashed var(--border); border-radius:5px; padding:9px; margin-bottom:8px;}
+  .ed-product-row{display:flex; align-items:center; gap:6px; margin-bottom:6px;}
+  .ed-product-row input[type=text]{flex:1;}
+  .ed-add-btn{width:100%; background:#fff; border:1px dashed var(--dark3); color:var(--dark3);
+    padding:8px; border-radius:5px; font-size:12px; font-weight:700; cursor:pointer; margin-top:4px;}
+  .ed-add-btn:hover{background:#eef4fb;}
+  .ed-add-cat-row{display:flex; flex-direction:column; gap:8px; margin-top:6px;}
+  .ed-add-cat-row select{flex:0 0 auto; font-size:12px; border:1px solid var(--border); border-radius:4px;}
+  .ed-hint{font-size:11px; color:var(--text-muted); margin:2px 0 8px; line-height:1.4;}
+  .ed-checkbox{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-muted); margin-bottom:8px;}
+  .ed-checkbox input[type=checkbox] { cursor:pointer; width:16px; height:16px; }
+
+  .cat-type-badge{font-size:9.5px; font-weight:700; text-transform:uppercase; padding:4px 8px; border-radius:10px;
+    background:#eef2f7; color:var(--text-muted); white-space:nowrap; flex-shrink:0;}
+
+  /* ===== IMAGEN ===== */
+  .ed-image-row{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
+  .ed-image-row input[type=text]{flex:1; min-width:120px;}
+  .ed-upload-btn{background:#eef2f7; border:1px solid var(--border); border-radius:4px; padding:7px 10px;
+    font-size:11px; font-weight:700; color:var(--dark3); cursor:pointer; white-space:nowrap; display:flex;
+    align-items:center; gap:5px; flex-shrink:0;}
+  .ed-upload-btn:hover{background:#e2e8f0;}
+  .ed-image-preview{max-width:100%; max-height:110px; object-fit:contain; margin-top:8px; display:block;
+    border:1px solid var(--border); border-radius:4px; padding:4px; background:#fafbfc;}
+
+  /* ===== BLOQUES DE CONTENIDO ===== */
+  .ed-element{border:1px solid var(--border); border-radius:5px; padding:9px; margin-bottom:8px; background:#fcfdfe;}
+  .ed-element-head{display:flex; align-items:center; gap:6px; margin-bottom:8px;}
+  .ed-element-type{flex:1; font-size:11px; font-weight:700; color:var(--dark3); text-transform:uppercase;
+    display:flex; align-items:center; gap:6px;}
+  .ed-subitem-row{display:flex; gap:6px; margin-bottom:6px; align-items:center;}
+  .ed-subitem-row input{flex:1; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-family:inherit;}
+  .ed-subitem-row input.narrow{flex:0 0 54px;}
+  .ed-chip-row{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;}
+  .ed-chip-btn{background:#fff; border:1px dashed var(--dark3); color:var(--dark3); padding:6px 10px;
+    border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px;}
+  .ed-chip-btn:hover{background:#eef4fb;}
+
+  /* ===== PREVIEW AREA ===== */
+  #previewArea{flex:1; padding:24px 0 60px; overflow-x:auto;}
+  #catalog-content{width:var(--page-w); margin:0 auto;}
+
+  .pdf-page{width:var(--page-w); min-height:var(--page-h); background:#fff; position:relative;
+    margin:0 auto 28px; box-shadow:0 6px 24px rgba(10,25,47,.18); overflow:hidden;
+    page-break-after:always;}
+  #catalog-content.exporting .pdf-page{margin-bottom:0; box-shadow:none;}
+
+  .back-index{position:absolute; top:16px; right:20px; font-size:12px; color:var(--dark2);
+    text-decoration:none; font-weight:700; display:flex; align-items:center; gap:7px; z-index:5; cursor:pointer;
+    background:#fff; padding:9px 16px; border-radius:20px; box-shadow:0 3px 10px rgba(0,0,0,.25);
+    transition:background .15s, color .15s, transform .15s;}
+  .back-index:hover{background:var(--orange); color:#fff; transform:translateY(-1px); text-decoration:none;}
+  .back-index i{font-size:11px;}
+  .back-index-bottom{top:auto; bottom:16px; right:20px; flex-direction:row-reverse;
+    background:var(--dark2); color:#fff; box-shadow:0 3px 10px rgba(0,0,0,.18);}
+  .back-index-bottom:hover{background:var(--orange); color:#fff;}
+  .back-index-bottom i{transform:rotate(180deg);}
+
+  .cover-page{position:relative; background:linear-gradient(135deg, var(--dark1) 0%, var(--dark2) 55%, var(--dark3) 100%);
+    display:flex; flex-direction:column; justify-content:flex-end; padding:80px 70px; color:#fff;}
+  
+  /* MARCOS ARRASTRABLES */
+  .image-frame{position:absolute; cursor:move; z-index:3; touch-action:none;}
+  .image-frame img{width:100%; height:100%; display:block; object-fit:fill; pointer-events:none; user-select:none;}
+  .ci-handle{position:absolute; width:14px; height:14px; background:var(--orange); border:2px solid #fff;
+    border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,.4); z-index:4; touch-action:none;}
+  .ci-h-nw{top:-7px; left:-7px; cursor:nwse-resize;}
+  .ci-h-n{top:-7px; left:50%; margin-left:-7px; cursor:ns-resize;}
+  .ci-h-ne{top:-7px; right:-7px; cursor:nesw-resize;}
+  .ci-h-e{top:50%; right:-7px; margin-top:-7px; cursor:ew-resize;}
+  .ci-h-se{bottom:-7px; right:-7px; cursor:nwse-resize;}
+  .ci-h-s{bottom:-7px; left:50%; margin-left:-7px; cursor:ns-resize;}
+  .ci-h-sw{bottom:-7px; left:-7px; cursor:nesw-resize;}
+  .ci-h-w{top:50%; left:-7px; margin-top:-7px; cursor:ew-resize;}
+  
+  #layout.mode-edit .image-frame{cursor:default;}
+  #layout.mode-edit .ci-handle{display:none;}
+  #catalog-content.exporting .ci-handle{display:none !important;}
+  #catalog-content.exporting .image-frame{cursor:default;}
+  
+  .cover-page h1{font-size:50px; font-weight:900; letter-spacing:1px; margin:0 0 14px;}
+  .cover-page .subtitle{font-size:18px; margin:0 0 40px; color:#dbe6f5;}
+  .cover-contact{display:flex; flex-direction:column; gap:10px; font-size:14px; color:#c9d8ec;}
+  .cover-contact p{margin:0; display:flex; align-items:center; gap:10px;}
+  .cover-contact i{color:var(--orange); width:16px; text-align:center;}
+  .cover-bottom-bar{height:10px; background:var(--orange);}
+
+  .index-page{background:#e7edf5; padding:70px 60px;}
+  .index-card{background:#fff; border-radius:4px; padding:44px 48px; box-shadow:0 2px 10px rgba(10,25,47,.06);}
+  .index-card h2{font-size:24px; font-weight:700; color:var(--dark1); margin:0 0 14px; padding-bottom:14px; border-bottom:2px solid var(--border);}
+  .index-list{list-style:none; margin:0; padding:0;}
+  .index-list li{border-bottom:1px dotted var(--border);}
+  .index-list a{display:flex; justify-content:space-between; align-items:center; padding:16px 4px;
+    text-decoration:none; color:var(--dark1); font-weight:700; font-size:15.5px; cursor:pointer;}
+  .index-list a:hover{color:var(--dark3);}
+  .index-list a span{color:var(--orange); font-weight:700;}
+
+  .section-banner{background:linear-gradient(90deg, var(--dark1), var(--dark2) 60%, var(--dark3));
+    color:#fff; padding:20px 40px; font-size:19px; font-weight:700; border-left:8px solid var(--orange);}
+  .section-body{padding:36px 44px;}
+  .continuation-tag{display:block; font-size:11px; color:var(--text-muted); font-style:italic; margin:14px 44px -6px;}
+
+  .info-image-page{display:flex; flex-direction:column;}
+  .info-image-body{flex:1; position:relative; padding:0; overflow:hidden;}
+
+  .info-block{background:var(--bg-block); border-left:4px solid var(--dark3); border-radius:2px;
+    padding:26px 32px; margin-bottom:22px;}
+  .info-block h3{margin:0 0 4px; font-size:17px; color:var(--dark1); font-weight:700;}
+  .info-block .lead{font-style:italic; color:var(--text-muted); margin:0 0 14px; font-size:14px;}
+  .info-block p{margin:0 0 12px; font-size:13.5px; line-height:1.65; color:#33425c;}
+  .info-block p:last-child{margin-bottom:0;}
+
+  .metrics-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:8px;}
+  .metric-card{background:#fff; border:1px solid var(--border); border-radius:6px; padding:18px 10px; text-align:center;}
+  .metric-card .num{font-size:26px; font-weight:900; color:var(--dark2);}
+  .metric-card .label{font-size:11px; font-weight:700; color:var(--dark1); margin:6px 0 8px;}
+  .metric-card .desc{font-size:10.5px; color:var(--text-muted); line-height:1.4;}
+
+  .block-image{width:100%; max-height:340px; object-fit:cover; border-radius:6px; margin-bottom:6px; display:block;}
+  .block-image-caption{font-size:11px; color:var(--text-muted); text-align:center; margin:0 0 14px; font-style:italic;}
+
+  .values-list{margin:8px 0 0; padding:0; list-style:none;}
+  .values-list li{font-size:13.5px; line-height:1.65; color:#33425c; margin-bottom:12px; padding-left:16px; position:relative;}
+  .values-list li::before{content:"•"; color:var(--orange); font-weight:900; position:absolute; left:0;}
+  .values-list li:last-child{margin-bottom:0;}
+  .values-list b{color:var(--dark1);}
+  .closing-tagline{text-align:center; font-weight:700; color:var(--dark2); font-size:14px; margin-top:16px;}
+
+  .cta-whatsapp{display:inline-flex; align-items:center; gap:9px; background:var(--green); color:#fff;
+    padding:13px 22px; border-radius:5px; font-weight:700; font-size:13px; text-decoration:none; margin-top:6px;}
+
+  .product-card{display:grid; grid-template-columns:230px 1fr; gap:0; background:#fff; border:1px solid var(--border);
+    border-left:4px solid var(--dark2); border-radius:4px; margin-bottom:18px; overflow:hidden;}
+  .product-media{background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:0; border-right:1px solid var(--border);}
+  .media-icon{width:74px; height:74px; border-radius:50%; background:linear-gradient(135deg, var(--dark2), var(--dark3));
+    color:#fff; display:flex; align-items:center; justify-content:center; font-size:30px; margin:40px 0;}
+  .product-img{width:100%; height:100%; min-height:200px; object-fit:cover; display:block;}
+  
+  .product-info{padding:18px 22px;}
+  .product-info h3{margin:0 0 10px; font-size:15.5px; color:var(--dark1); font-weight:700;}
+  .product-info ul{margin:0 0 16px; padding:0; list-style:none;}
+  .product-info li{font-size:12.5px; color:#33425c; padding:4px 0 4px 14px; position:relative; line-height:1.4;}
+  .product-info li::before{content:"•"; color:var(--dark3); position:absolute; left:0; font-weight:900;}
+  .product-actions{display:flex; gap:10px; flex-wrap:wrap;}
+  .btn{display:inline-flex; align-items:center; gap:7px; padding:9px 16px; border-radius:5px; font-size:12px;
+    font-weight:700; text-decoration:none; color:#fff; border:none; cursor:pointer;}
+  .btn-orange{background:var(--orange);}
+  .btn-green{background:var(--green);}
+
+  #measureSandbox{position:absolute; top:0; left:-99999px; visibility:hidden;}
+  @media (max-width:1200px){ #editorPanel{width:340px; min-width:340px;} }
+  @media (max-width:900px){
+    #layout{flex-direction:column;}
+    #editorPanel{width:100%; min-width:0; max-height:none;}
+    #previewArea{width:100%;}
+  }
+</style>
+</head>
+<body>
+
+<!-- PANTALLA DE LOGIN -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <h2><i class="fa-solid fa-lock"></i> Acceso al Catálogo</h2>
+    <input type="email" id="loginEmail" placeholder="Correo electrónico (ej: admin@neyra.com)">
+    <input type="password" id="loginPassword" placeholder="Contraseña">
+    <div id="loginError" class="login-error">Usuario o contraseña incorrectos.</div>
+    <button onclick="login()"><i class="fa-solid fa-right-to-bracket"></i> Iniciar Sesión</button>
+  </div>
+</div>
+
+<div id="appContainer">
+  <div id="toolbar">
+    <div class="brand"><i class="fa-solid fa-microchip"></i> NEYRA SERVICIOS · Catálogo Editable</div>
+    
+    <div class="actions">
+      <!-- Indicador de guardado en la nube -->
+      <span id="cloudStatus" class="cloud-status saved"><i class="fa-solid fa-cloud-check"></i> Sincronizado</span>
+      
+      <div class="t-divider"></div>
+      
+      <button class="tbtn mode-btn" id="previewModeBtn" onclick="setMode('preview')"><i class="fa-solid fa-eye"></i> Vista previa</button>
+      <button class="tbtn mode-btn" id="editModeBtn" onclick="setMode('edit')"><i class="fa-solid fa-pen"></i> Modo edición</button>
+      <button class="tbtn" id="exportBtn" onclick="exportToPDF()"><i class="fa-solid fa-file-pdf"></i> Descargar PDF</button>
+      <button class="tbtn btn-logout" onclick="logout()" title="Cerrar sesión"><i class="fa-solid fa-right-from-bracket"></i> Salir</button>
+    </div>
+  </div>
+
+  <div id="layout" class="mode-preview">
+    <div id="editorPanel">
+      <h2><i class="fa-solid fa-sliders"></i> Panel de edición</h2>
+      <div id="editorPanelInner"></div>
+    </div>
+    <div id="previewArea">
+      <div id="catalog-content"></div>
+    </div>
+  </div>
+</div>
+
+<div id="measureSandbox"></div>
+
+<script>
+/* =========================================================
+   CONFIGURACIÓN DE FIREBASE (PEGAR CLAVES AQUÍ)
+========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyDfBQUwmtFkrf04TCJsosG974rjXeUAzhY",
+  authDomain: "catalogo-neyra.firebaseapp.com",
+  projectId: "catalogo-neyra",
+  storageBucket: "catalogo-neyra.firebasestorage.app",
+  messagingSenderId: "54450451989",
+  appId: "1:54450451989:web:a0d30c4080411baf36001c"
+};
+
+// Inicializa Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+/* =========================================================
+   SISTEMA DE AUTENTICACIÓN
+========================================================= */
+function login() {
+  const email = document.getElementById('loginEmail').value;
+  const pass = document.getElementById('loginPassword').value;
+  const errorMsg = document.getElementById('loginError');
+  
+  if(!email || !pass) {
+    errorMsg.innerText = "Completá todos los datos";
+    errorMsg.style.display = "block";
+    return;
+  }
+  
+  auth.signInWithEmailAndPassword(email, pass).catch((error) => {
+    errorMsg.innerText = "Error: Verifica tu correo y contraseña";
+    errorMsg.style.display = "block";
+  });
+}
+
+function logout() {
+  auth.signOut();
+}
+
+// Escuchador de estado de sesión
+auth.onAuthStateChanged((user) => {
+  if (user) {
+    // Si inició sesión correctamente
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.getElementById('appContainer').style.display = 'block';
+    cargarDesdeLaNube(); // Carga los datos de Firebase al entrar
+  } else {
+    // Si cerró sesión o no está logueado
+    document.getElementById('loginOverlay').style.display = 'flex';
+    document.getElementById('appContainer').style.display = 'none';
+  }
+});
+
+
+/* =========================================================
+   AUTOGUARDADO EN FIREBASE
+========================================================= */
+var saveTimeout = null;
+var cloudStatusEl = document.getElementById('cloudStatus');
+
+function autoSaveToCloud() {
+  // Si no está logueado, no guarda
+  if(!auth.currentUser) return;
+  
+  cloudStatusEl.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Guardando...';
+  cloudStatusEl.className = 'cloud-status';
+  
+  // Espera 1.5 segundos de inactividad antes de guardar para no saturar la nube
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    // Guarda toda la variable 'state' en la base de datos de Firebase
+    db.collection('catalogos').doc('neyra_principal').set(state)
+      .then(() => {
+        cloudStatusEl.innerHTML = '<i class="fa-solid fa-cloud"></i> Guardado';
+        cloudStatusEl.className = 'cloud-status saved';
+      })
+      .catch((error) => {
+        console.error("Error guardando en la nube:", error);
+        cloudStatusEl.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Error al guardar';
+        cloudStatusEl.className = 'cloud-status error';
+        alert("Atención: El catálogo superó el peso límite (1 MB). Recuerda no subir imágenes pesadas directamente. Pega links de Google Drive para las fotos.");
+      });
+  }, 1500);
+}
+
+function cargarDesdeLaNube() {
+  cloudStatusEl.innerHTML = '<i class="fa-solid fa-rotate"></i> Cargando...';
+  
+  db.collection('catalogos').doc('neyra_principal').get().then((doc) => {
+    if (doc.exists) {
+      state = migrateState(doc.data());
+      cloudStatusEl.innerHTML = '<i class="fa-solid fa-cloud"></i> Sincronizado';
+    } else {
+      // Si no existe, guarda el estado por defecto que ya tenemos cargado
+      state = migrateState(defaultState());
+      autoSaveToCloud();
+    }
+    // Dibuja el catálogo con los datos cargados
+    renderEditorPanel();
+    renderPreview();
+  }).catch((error) => {
+    console.error("Error obteniendo documento:", error);
+    cloudStatusEl.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Error de carga';
+  });
+}
+
+
+/* =========================================================
+   ESTADO / DATOS
+========================================================= */
+var uidCounter = 1;
+function uid(){ return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5); }
+
+function defaultState(){
+  return {
+    whatsapp: '5493514223214',
+    company: {
+      name: 'NEYRA SERVICIOS',
+      subtitle: 'CATÁLOGO OFICIAL DE PRODUCTOS Y SERVICIOS IT',
+      address: 'Calle Rioja 361, Córdoba, Argentina',
+      phone: '(0351) 4223214',
+      web: 'neyraservicios.com.ar',
+      showCover: true,
+      showIndex: true,
+      coverImage: '',
+      coverImageX: 630,
+      coverImageY: 60,
+      coverImageW: 210,
+      coverImageH: 260
+    },
+    categories: [
+      {
+        id: uid(), title: 'Quiénes somos', type: 'content', visible: true, icon: 'fa-building',
+        blocks: [
+          {
+            heading: 'Atendiendo Necesidades Tecnológicas desde 1983',
+            elements: [
+              {type:'subtitle', text:'Más de 40 años de experiencia, confianza y excelencia'},
+              {type:'paragraph', text:'Desde 1983, Neyra Servicios trabaja acompañando a empresas, comercios y particulares en sus necesidades tecnológicas, ofreciendo soluciones confiables, profesionales y adaptadas a cada cliente.'},
+              {type:'paragraph', text:'Durante más de cuatro décadas, hemos construido nuestra trayectoria sobre tres pilares fundamentales: experiencia, calidad y compromiso. Nuestro objetivo es brindar un servicio tecnológico integral, combinando conocimiento técnico, atención personalizada y una constante actualización frente a los cambios de la industria.'},
+              {type:'paragraph', text:'A lo largo de estos años, hemos acompañado a miles de clientes, ayudándolos a resolver sus desafíos tecnológicos y proporcionando soluciones pensadas para mejorar el funcionamiento, la seguridad y la productividad de sus equipos y sistemas.'}
+            ]
+          },
+          {
+            heading: 'NUESTRA TRAYECTORIA',
+            elements: [
+              {type:'paragraph', text:'La tecnología cambia constantemente, y nuestra forma de trabajar también.'},
+              {type:'paragraph', text:'Desde nuestros comienzos, hemos evolucionado junto con las nuevas herramientas y necesidades del mercado, incorporando conocimientos, tecnologías y metodologías que nos permiten ofrecer un servicio cada vez más completo.'},
+              {type:'paragraph', text:'Nuestra experiencia de más de 40 años nos permite comprender que cada cliente es diferente. Por eso, analizamos cada necesidad de manera particular y buscamos ofrecer soluciones eficientes, claras y duraderas.'},
+              {type:'paragraph', text:'Más que resolver un problema puntual, buscamos construir relaciones de confianza a largo plazo con nuestros clientes.'}
+            ]
+          },
+          {
+            heading: 'NUESTROS NÚMEROS',
+            elements: [
+              {type:'metrics', items: [
+                {num:'40+', label:'AÑOS DE EXPERIENCIA', desc:'Más de cuatro décadas acompañando la evolución tecnológica.'},
+                {num:'15.000+', label:'CLIENTES SATISFECHOS', desc:'Miles de empresas y particulares han confiado en nuestros servicios.'},
+                {num:'50+', label:'EXPERTOS TÉCNICOS', desc:'Profesionales capacitados y comprometidos con la calidad.'},
+                {num:'24/7', label:'SOPORTE Y ATENCIÓN', desc:'Compromiso permanente con nuestros clientes y sus necesidades.'}
+              ]}
+            ]
+          },
+          {
+            heading: 'NUESTROS VALORES',
+            elements: [
+              {type:'values', items: [
+                {title:'Excelencia Técnica', text:'La calidad de nuestro servicio comienza con nuestro equipo. Apostamos constantemente a la capacitación y actualización de nuestros profesionales.'},
+                {title:'Satisfacción del Cliente', text:'Entendemos que detrás de cada consulta existe una necesidad concreta. Buscamos superar expectativas y construir relaciones basadas en la confianza.'},
+                {title:'Integridad y Transparencia', text:'Trabajamos con honestidad, responsabilidad y transparencia, explicando las alternativas disponibles de manera clara.'},
+                {title:'Innovación y Evolución', text:'Nos mantenemos atentos a las nuevas tendencias y avances tecnológicos para incorporar soluciones cada vez más eficientes y seguras.'}
+              ]}
+            ]
+          },
+          {
+            heading: 'UN SERVICIO PENSADO PARA CADA NECESIDAD',
+            elements: [
+              {type:'paragraph', text:'Ya sea para una empresa que necesita mantener su infraestructura tecnológica en funcionamiento, un comercio que requiere asistencia permanente o un particular que busca solucionar un inconveniente, en Neyra Servicios trabajamos para brindar una atención rápida, profesional y personalizada.'},
+              {type:'tagline', text:'Experiencia + Conocimiento Técnico + Atención Personalizada + Compromiso'}
+            ]
+          }
+        ]
+      },
+      {
+        id: uid(), title: 'Notebooks', type: 'products', visible: true, icon: 'fa-laptop',
+        products: [
+          {id:uid(), name:'Notebook MSI A15 AI B2HWEKG', image:'', infoImage:'', visible:true,
+           specs:['Procesador: AMD Ryzen 5','Pantalla: 15.6" Full HD 144Hz','Memoria RAM: 16GB DDR5 High Speed','Almacenamiento: 512GB SSD NVMe M.2','Gráficos: NVIDIA GeForce RTX 3050 4GB','Sistema Operativo: Windows 11 Home']},
+          {id:uid(), name:'Notebook Lenovo ThinkPad E15 Gen 4', image:'', infoImage:'', visible:true,
+           specs:['Procesador: Intel Core i5 12va Gen','Pantalla: 15.6" FHD IPS Antirreflejo','Memoria RAM: 8GB DDR4 (Expandible)','Almacenamiento: 256GB SSD PCIe NVMe','Teclado: Resistente a derrames con teclado numérico','Seguridad: Lector de huella y chip TPM 2.0']},
+          {id:uid(), name:'Notebook ASUS ZenBook 14 OLED', image:'', infoImage:'', visible:true,
+           specs:['Procesador: Intel Core i7 13va Gen','Pantalla: 14" OLED 2.8K 90Hz HDR','Memoria RAM: 16GB LPDDR5','Almacenamiento: 1TB SSD NVMe PCIe 4.0','Construcción: Chasis ultraliviano de aluminio (1.39 kg)','Batería: Hasta 12 horas de autonomía']}
+        ]
+      },
+      {
+        id: uid(), title: 'PCs y Mini PCs', type: 'products', visible: true, icon: 'fa-desktop',
+        products: [
+          {id:uid(), name:'Mini PC ASUS PN52-BB7000XTC', image:'', infoImage:'', visible:true,
+           specs:['Procesador: AMD Ryzen 7 5800H (8C/16T)','Formato: Barebone (Configurable RAM y SSD)','Conectividad: WiFi 6E, Bluetooth 5.2, Dual LAN 2.5G','Salidas de Video: Quad-Display 4K vía Dual HDMI + USB-C DP']},
+          {id:uid(), name:'Mini PC ASUS PN53-BB7000X1TDR', image:'', infoImage:'', visible:true,
+           specs:['Procesador: AMD Ryzen 7 7735HS High Performance','Gráficos Integrados: AMD Radeon 680M','Formato: Barebone Ultra Compacto','Puertos: USB4 Type-C 40Gbps, DisplayPort 1.4, HDMI 2.1']},
+          {id:uid(), name:'PC Equipamiento Oficina Standard', image:'', infoImage:'', visible:true,
+           specs:['Procesador: Intel Core i3 12100 (4C/8T)','Memoria RAM: 8GB DDR4 3200MHz','Almacenamiento: 240GB SSD SATA3','Gabinete: Kit Slim Corporativo con fuente 500W y periféricos']},
+          {id:uid(), name:'PC Estación de Trabajo / Diseño', image:'', infoImage:'', visible:true,
+           specs:['Procesador: AMD Ryzen 5 5600X','Memoria RAM: 32GB DDR4 3200MHz Dual Channel','Almacenamiento: 1TB SSD NVMe Gen4','Placa de Video: NVIDIA GeForce RTX 4060 8GB GDDR6']},
+          {id:uid(), name:'PC Corporativa Avanzada Pro', image:'', infoImage:'', visible:true,
+           specs:['Procesador: Intel Core i7 13700 (16C/24T)','Memoria RAM: 16GB DDR5 4800MHz','Almacenamiento: 500GB SSD NVMe M.2','Seguridad: Módulo TPM 2.0 en placa madre giga']}
+        ]
+      },
+      {
+        id: uid(), title: 'Impresoras', type: 'products', visible: true, icon: 'fa-print',
+        products: [
+          {id:uid(), name:'Impresora Multifunción Epson EcoTank L3250', image:'', infoImage:'', visible:true,
+           specs:['Sistema: Tanques de tinta rellenables de alto rendimiento','Funciones: Impresión, Copia, Escáner','Conectividad: WiFi, WiFi Direct, USB 2.0','Rendimiento: Hasta 4.500 páginas en negro / 7.500 a color']},
+          {id:uid(), name:'Impresora Láser HP LaserJet Pro M404dw', image:'', infoImage:'', visible:true,
+           specs:['Tipo: Monocromo Láser de alta velocidad','Velocidad: Hasta 40 ppm','Impresión Dúplex: Doble cara automática','Conectividad: Ethernet Gigabit, WiFi Dual Band, USB']},
+          {id:uid(), name:'Impresora Brother HL-1212W Compacta', image:'', infoImage:'', visible:true,
+           specs:['Tipo: Monocromo Láser para Oficina / Hogar','Velocidad: Hasta 21 ppm','Bandeja de Entrada: 150 hojas','Conectividad: WiFi integrado y USB 2.0']}
+        ]
+      },
+      {
+        id: uid(), title: 'Proyectores y Pantallas', type: 'products', visible: true, icon: 'fa-video',
+        products: [
+          {id:uid(), name:'Proyector ViewSonic PA503W 3800 Lumens', image:'', infoImage:'', visible:true,
+           specs:['Brillo: 3.800 Lúmenes ANSI','Resolución Nativa: WXGA (1280x800) HD','Vida Útil Lámpara: Hasta 15.000 horas en modo SuperEco','Entradas: Dual HDMI, Dual VGA, Video Compuesto']},
+          {id:uid(), name:'Monitor Samsung 24" IPS F24T35', image:'', infoImage:'', visible:true,
+           specs:['Tamaño: 24 pulgadas Full HD (1920x1080)','Panel: IPS con ángulo de visión 178°','Tasa de Refresco: 75Hz con AMD FreeSync','Diseño: Pantalla sin bordes en 3 lados']},
+          {id:uid(), name:'Monitor Dell UltraSharp U2722D 27" QHD', image:'', infoImage:'', visible:true,
+           specs:['Tamaño: 27 pulgadas QHD (2560x1440)','Color: 100% sRGB, 100% Rec.709, 95% DCI-P3','Conectividad: DisplayPort, HDMI, Hub USB 10Gbps','Ergonomía: Ajuste de altura, inclinación y pivot']}
+        ]
+      },
+      {
+        id: uid(), title: 'Desarrollos Software y Soluciones Empresariales', type: 'content', visible: true, icon: 'fa-laptop-code',
+        blocks: [
+          {
+            heading: 'SOLUCIONES DIGITALES & SOFTWARE',
+            elements: [
+              {type:'paragraph', text:'Nuestra división especializada de software provee soluciones digitales a medida, diseñadas estratégicamente para optimizar los flujos de trabajo corporativos, automatizar la gestión de stock y ventas, y potenciar la rentabilidad operacional.'},
+              {type:'values', items: [
+                {title:'Sistemas ERP & CRM Personalizados', text:'Centralización de facturación electrónica AFIP/ARCA, control de inventario multisucursal y gestión de clientes.'},
+                {title:'Inteligencia Artificial Aplicada', text:'Implementación de chatbots de atención al cliente 24/7 en WhatsApp y automatización de procesos repetitivos.'},
+                {title:'Ciberseguridad & Auditorías IT', text:'Protección perimetral de datos corporativos, planes de respaldo automatizado en la nube y prevención de amenazas ransomware.'}
+              ]},
+              {type:'cta', label:'SOLICITAR ASESORAMIENTO DE SOFTWARE POR WHATSAPP', message:'Hola, quiero solicitar asesoramiento de software para mi empresa.'}
+            ]
+          }
+        ]
+      },
+      {
+        id: uid(), title: 'Servicio Técnico Especializado', type: 'content', visible: true, icon: 'fa-screwdriver-wrench',
+        blocks: [
+          {
+            heading: 'SERVICIO TÉCNICO ESPECIALIZADO',
+            elements: [
+              {type:'paragraph', text:'El departamento de Servicio Técnico de Neyra Servicios se distingue por su rigurosidad, rapidez y precisión técnica en nuestro local de calle Rioja 361, Córdoba.'},
+              {type:'values', items: [
+                {title:'Reparación y Mantenimiento de Hardware', text:'Diagnóstico sin cargo, limpieza química interna, cambio de pasta térmica de alta conductividad, y reparación de placas madre.'},
+                {title:'Reparación Express de Notebooks', text:'Cambios de pantalla/módulo, reemplazo de teclados, bisagras y baterías con repuestos originales en el día.'},
+                {title:'Servicio Técnico de Impresoras', text:'Mantenimiento preventivo de cabezales, reemplazo de almohadillas, y reparación de impresoras láser y de tinta continua.'},
+                {title:'Soporte de Redes y Servidores', text:'Instalación de cableado estructurado, redes Mesh corporativas, mantenimiento de servidores Windows/Linux y backups.'}
+              ]},
+              {type:'cta', label:'SOLICITAR TURNO EN SERVICIO TÉCNICO POR WHATSAPP', message:'Hola, quiero solicitar un turno en Servicio Técnico.'}
+            ]
+          }
+        ]
+      }
+    ]
+  };
+}
+
+function migrateBlock(block){
+  if(block.elements) return block;
+  var elements = [];
+  if(block.lead) elements.push({type:'subtitle', text:block.lead});
+  (block.paragraphs||[]).forEach(function(p){ elements.push({type:'paragraph', text:p}); });
+  if(block.metrics && block.metrics.length){
+    elements.push({type:'metrics', items: block.metrics.map(function(m){ return {num:m.num, label:m.label, desc:m.desc}; })});
+  }
+  if(block.values && block.values.length){
+    elements.push({type:'values', items: block.values.map(function(v){ return {title:v.title, text:v.text}; })});
+  }
+  if(block.tagline) elements.push({type:'tagline', text:block.tagline});
+  if(block.cta) elements.push({type:'cta', label:block.cta.label, message:block.cta.message});
+  block.elements = elements;
+  delete block.lead; delete block.paragraphs; delete block.metrics; delete block.values; delete block.tagline; delete block.cta;
+  return block;
+}
+function migrateState(st){
+  st.categories.forEach(function(cat){
+    if(cat.type === 'content'){ (cat.blocks||[]).forEach(migrateBlock); }
+  });
+  if(!('showCover' in st.company)) st.company.showCover = true;
+  if(!('showIndex' in st.company)) st.company.showIndex = true;
+  if(!('coverImage' in st.company)) st.company.coverImage = '';
+  if(!('coverImageX' in st.company) || !('coverImageW' in st.company)){
+    var legacyW = st.company.coverImageSize || 210;
+    st.company.coverImageW = legacyW;
+    st.company.coverImageH = Math.round(legacyW * 1.25);
+    st.company.coverImageX = 900 - 60 - legacyW;
+    st.company.coverImageY = 60;
+  }
+  if(!('coverImageY' in st.company)) st.company.coverImageY = 60;
+  if(!('coverImageH' in st.company)) st.company.coverImageH = 260;
+  return st;
+}
+
+// Inicia un state básico temporal hasta que cargue la nube
+var state = migrateState(defaultState());
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+function escapeHtml(str){
+  return (str==null?'':String(str)).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function waLink(message){
+  return 'https://wa.me/' + encodeURIComponent(state.whatsapp) + '?text=' + encodeURIComponent(message||'');
+}
+
+function getIndexPageNum() {
+  return state.company.showCover ? 2 : 1;
+}
+
+/* ---- Imágenes: por link o por archivo subido ---- */
+function renderImageField(label, value, urlOninput, uploadTarget, idSuffix){
+  var fileId = 'imgfile_' + idSuffix;
+  var html = '<div class="ed-field ed-image-field"><label>'+label+'</label>';
+  html += '<div class="ed-image-row">';
+  html += '<input type="text" placeholder="Pegar link (ej: Drive) ¡RECOMENDADO!" value="'+escapeHtml(value||'')+'" oninput="'+urlOninput+'">';
+  html += '<label class="ed-upload-btn" for="'+fileId+'"><i class="fa-solid fa-upload"></i> Subir archivo (No usar en Firebase)</label>';
+  html += '<input type="file" id="'+fileId+'" accept="image/*" style="display:none" onchange="readImageFile(this, \''+uploadTarget+'\')">';
+  html += '</div>';
+  if(value) html += '<img class="ed-image-preview" src="'+escapeHtml(value)+'">';
+  html += '</div>';
+  return html;
+}
+function setImageValue(target, dataUrl){
+  var parts = target.split(':');
+  if(parts[0]==='cover'){
+    state.company.coverImage = dataUrl;
+  } else if(parts[0]==='product'){
+    state.categories[parts[1]].products[parts[2]].image = dataUrl;
+  } else if(parts[0]==='infoimg'){
+    state.categories[parts[1]].products[parts[2]].infoImage = dataUrl;
+  } else if(parts[0]==='element'){
+    state.categories[parts[1]].blocks[parts[2]].elements[parts[3]].src = dataUrl;
+  }
+}
+function readImageFile(inputEl, target){
+  var file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){ setImageValue(target, e.target.result); renderAll(); };
+  reader.readAsDataURL(file);
+}
+
+/* =========================================================
+   RENDER: TARJETAS DE PRODUCTO / BLOQUES DE CONTENIDO
+========================================================= */
+function buildProductCardHTML(cat, prod){
+  var media = prod.image
+    ? '<img class="product-img" src="'+escapeHtml(prod.image)+'" alt="'+escapeHtml(prod.name)+'">'
+    : '<div class="media-icon"><i class="fa-solid '+escapeHtml(cat.icon||'fa-box')+'"></i></div>';
+  
+  var specsHtml = (prod.specs||[]).filter(function(s){return s.trim()!=='';}).map(function(s){
+    return '<li>'+escapeHtml(s)+'</li>';
+  }).join('');
+  var isUploadedInfo = prod.infoImage && prod.infoImage.indexOf('data:') === 0;
+  var moreInfoHref = prod.infoImage
+    ? (isUploadedInfo ? 'javascript:void(0)' : escapeHtml(prod.infoImage))
+    : waLink('Hola, quiero consultar el precio de: '+prod.name);
+  var moreInfoBtn = '<a class="btn btn-orange link-annot more-info-btn" data-product-id="'+escapeHtml(prod.id)+'" target="_blank" rel="noopener" href="'+moreInfoHref+'">Más Info</a>';
+  return ''+
+  '<div class="product-card">'+
+    '<div class="product-media">'+media+'</div>'+
+    '<div class="product-info">'+
+      '<h3>'+escapeHtml(prod.name)+'</h3>'+
+      '<ul>'+specsHtml+'</ul>'+
+      '<div class="product-actions">'+
+        moreInfoBtn+
+        '<a class="btn btn-green link-annot" target="_blank" rel="noopener" href="'+waLink('Hola, quiero consultar por WhatsApp sobre: '+prod.name)+'"><i class="fa-brands fa-whatsapp"></i> CONSULTAR POR WHATSAPP</a>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function buildContentBlockHTML(block){
+  var html = '<div class="info-block">';
+  if(block.heading) html += '<h3>'+escapeHtml(block.heading)+'</h3>';
+  (block.elements||[]).forEach(function(el){
+    switch(el.type){
+      case 'subtitle':
+        if(el.text) html += '<p class="lead">'+escapeHtml(el.text)+'</p>';
+        break;
+      case 'paragraph':
+        if(el.text && el.text.trim()!=='') html += '<p>'+escapeHtml(el.text)+'</p>';
+        break;
+      case 'tagline':
+        if(el.text) html += '<p class="closing-tagline">'+escapeHtml(el.text)+'</p>';
+        break;
+      case 'values':
+        if(el.items && el.items.length){
+          html += '<ul class="values-list">';
+          el.items.forEach(function(v){ html += '<li><b>'+escapeHtml(v.title)+':</b> '+escapeHtml(v.text)+'</li>'; });
+          html += '</ul>';
+        }
+        break;
+      case 'metrics':
+        if(el.items && el.items.length){
+          html += '<div class="metrics-grid">';
+          el.items.forEach(function(m){ html += '<div class="metric-card"><div class="num">'+escapeHtml(m.num)+'</div><div class="label">'+escapeHtml(m.label)+'</div><div class="desc">'+escapeHtml(m.desc)+'</div></div>'; });
+          html += '</div>';
+        }
+        break;
+      case 'image':
+        if(el.src){
+          html += '<img class="block-image" src="'+escapeHtml(el.src)+'">';
+          if(el.caption) html += '<div class="block-image-caption">'+escapeHtml(el.caption)+'</div>';
+        }
+        break;
+      case 'cta':
+        if(el.label){
+          html += '<a class="cta-whatsapp link-annot" target="_blank" rel="noopener" href="'+waLink(el.message)+'"><i class="fa-brands fa-whatsapp"></i> '+escapeHtml(el.label)+'</a>';
+        }
+        break;
+    }
+  });
+  html += '</div>';
+  return html;
+}
+
+/* =========================================================
+   PAGINACIÓN
+========================================================= */
+var PAGE_W = 900, PAGE_H = 1270;
+
+function createPageShell(cat, isContinuation){
+  var page = document.createElement('div');
+  page.className = 'pdf-page';
+  page.style.width = PAGE_W + 'px';
+  page.dataset.categoryId = cat.id;
+  
+  if (state.company.showIndex) {
+    var idxPage = getIndexPageNum();
+    var back = document.createElement('a');
+    back.className = 'back-index link-annot nav-link';
+    back.href = 'javascript:void(0)';
+    back.setAttribute('data-target-page', idxPage);
+    back.innerHTML = '<i class="fa-solid fa-arrow-up"></i> Volver al índice';
+    back.onclick = function(){ scrollToPage(idxPage); };
+    page.appendChild(back);
+
+    var backBottom = document.createElement('a');
+    backBottom.className = 'back-index back-index-bottom link-annot nav-link';
+    backBottom.href = 'javascript:void(0)';
+    backBottom.setAttribute('data-target-page', idxPage);
+    backBottom.innerHTML = '<i class="fa-solid fa-arrow-up"></i> Volver al índice';
+    backBottom.onclick = function(){ scrollToPage(idxPage); };
+    page.appendChild(backBottom);
+  }
+
+  var banner = document.createElement('div');
+  banner.className = 'section-banner';
+  banner.textContent = cat.title;
+  page.appendChild(banner);
+
+  if(isContinuation){
+    var tag = document.createElement('span');
+    tag.className = 'continuation-tag';
+    tag.textContent = 'Continuación';
+    page.appendChild(tag);
+  }
+
+  var body = document.createElement('div');
+  body.className = 'section-body';
+  page.appendChild(body);
+
+  return {page: page, body: body};
+}
+
+function paginateCategories(categories){
+  var sandbox = document.getElementById('measureSandbox');
+  sandbox.innerHTML = '';
+  var pages = [];
+  var current = null;
+
+  function pageHeight(){ return current.page.getBoundingClientRect().height; }
+
+  function newPage(cat, isCont){
+    if(current) pages.push(current.page);
+    current = createPageShell(cat, isCont);
+    sandbox.appendChild(current.page);
+  }
+
+  function addBlockNode(cat, node){
+    current.body.appendChild(node);
+    if(pageHeight() > PAGE_H && current.body.children.length > 1){
+      current.body.removeChild(node);
+      newPage(cat, true);
+      current.body.appendChild(node);
+    }
+  }
+
+  categories.filter(function(c){ return c.visible; }).forEach(function(cat){
+    newPage(cat, false);
+    if(cat.type === 'products'){
+      cat.products.filter(function(p){ return p.visible; }).forEach(function(prod){
+        var wrap = document.createElement('div');
+        wrap.innerHTML = buildProductCardHTML(cat, prod);
+        addBlockNode(cat, wrap.firstElementChild);
+      });
+    } else {
+      (cat.blocks || []).forEach(function(block){
+        var wrap = document.createElement('div');
+        wrap.innerHTML = buildContentBlockHTML(block);
+        addBlockNode(cat, wrap.firstElementChild);
+      });
+    }
+  });
+  if(current) pages.push(current.page);
+  return pages;
+}
+
+function buildCoverPage(){
+  var page = document.createElement('div');
+  page.className = 'pdf-page cover-page';
+  page.style.width = PAGE_W + 'px';
+  var mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(state.company.address);
+  var telDigits = (state.company.phone||'').replace(/\D/g,'');
+  var telUrl = 'tel:+54' + telDigits;
+  var webHref = /^https?:\/\//i.test(state.company.web) ? state.company.web : 'https://' + state.company.web.replace(/^\/+/, '');
+
+  var coverImgHtml = state.company.coverImage
+    ? '<div class="image-frame" data-frame-type="cover" title="Arrastrá para mover · tirá de los puntos para cambiar el tamaño" '+
+        'style="left:'+state.company.coverImageX+'px; top:'+state.company.coverImageY+'px; width:'+state.company.coverImageW+'px; height:'+state.company.coverImageH+'px;">'+
+        '<img src="'+escapeHtml(state.company.coverImage)+'" draggable="false">'+
+        '<div class="ci-handle ci-h-nw" data-dir="nw"></div>'+
+        '<div class="ci-handle ci-h-n" data-dir="n"></div>'+
+        '<div class="ci-handle ci-h-ne" data-dir="ne"></div>'+
+        '<div class="ci-handle ci-h-e" data-dir="e"></div>'+
+        '<div class="ci-handle ci-h-se" data-dir="se"></div>'+
+        '<div class="ci-handle ci-h-s" data-dir="s"></div>'+
+        '<div class="ci-handle ci-h-sw" data-dir="sw"></div>'+
+        '<div class="ci-handle ci-h-w" data-dir="w"></div>'+
+      '</div>'
+    : '';
+  page.innerHTML = coverImgHtml+''+
+    '<div>'+
+      '<h1>'+escapeHtml(state.company.name)+'</h1>'+
+      '<p class="subtitle">'+escapeHtml(state.company.subtitle)+'</p>'+
+      '<div class="cover-contact">'+
+        '<p><i class="fa-solid fa-location-dot"></i> <a class="link-annot" target="_blank" rel="noopener" style="color:#dbe6f5;" href="'+mapsUrl+'">'+escapeHtml(state.company.address)+'</a></p>'+
+        '<p><i class="fa-solid fa-phone"></i> <a class="link-annot" style="color:#dbe6f5;" href="'+telUrl+'">'+escapeHtml(state.company.phone)+'</a></p>'+
+        '<p><i class="fa-solid fa-globe"></i> <a class="link-annot" target="_blank" rel="noopener" style="color:#dbe6f5;" href="'+webHref+'">'+escapeHtml(state.company.web)+'</a></p>'+
+        '<p><i class="fa-brands fa-whatsapp"></i> <a class="link-annot" target="_blank" rel="noopener" style="color:#dbe6f5;" href="'+waLink('Hola, quiero consultar sobre el catálogo de productos y servicios.')+'">WhatsApp Directo</a></p>'+
+      '</div>'+
+    '</div>'+
+    '<div class="cover-bottom-bar"></div>';
+  return page;
+}
+
+function buildIndexPage(catFirstPage){
+  var page = document.createElement('div');
+  page.className = 'pdf-page index-page';
+  page.style.width = PAGE_W + 'px';
+  var items = state.categories.filter(function(c){ return c.visible; }).map(function(cat, i){
+    var pageNum = catFirstPage[cat.id];
+    return '<li><a class="link-annot nav-link" href="javascript:void(0)" data-target-page="'+pageNum+'" onclick="scrollToPage('+pageNum+')">'+
+      escapeHtml(cat.title)+' <span>'+pageNum+'</span></a></li>';
+  }).join('');
+  page.innerHTML = '<div class="index-card"><h2>ÍNDICE</h2><ul class="index-list">'+items+'</ul></div>';
+  return page;
+}
+
+function scrollToPage(pageNumber){
+  var container = document.getElementById('catalog-content');
+  var node = container.children[pageNumber - 1];
+  if(node) node.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function buildInfoImagePage(cat, prod){
+  var page = document.createElement('div');
+  page.className = 'pdf-page info-image-page';
+  page.style.width = PAGE_W + 'px';
+  
+  if (state.company.showIndex) {
+    var idxPage = getIndexPageNum();
+    var back = document.createElement('a');
+    back.className = 'back-index link-annot nav-link';
+    back.href = 'javascript:void(0)';
+    back.setAttribute('data-target-page', idxPage);
+    back.innerHTML = '<i class="fa-solid fa-arrow-up"></i> Volver al índice';
+    back.onclick = function(){ scrollToPage(idxPage); };
+    page.appendChild(back);
+  }
+
+  var banner = document.createElement('div');
+  banner.className = 'section-banner';
+  banner.textContent = prod.name + ' — Info y precio';
+  page.appendChild(banner);
+
+  var body = document.createElement('div');
+  body.className = 'info-image-body';
+
+  if(prod.infoImageX === undefined){
+    prod.infoImageX = 100; prod.infoImageY = 100; prod.infoImageW = 700; prod.infoImageH = 900;
+  }
+
+  var infoImgHtml = '<div class="image-frame" data-frame-type="info" data-c-id="'+escapeHtml(cat.id)+'" data-p-id="'+escapeHtml(prod.id)+'" title="Arrastrá para mover · tirá de los puntos para cambiar el tamaño" '+
+      'style="left:'+prod.infoImageX+'px; top:'+prod.infoImageY+'px; width:'+prod.infoImageW+'px; height:'+prod.infoImageH+'px;">'+
+      '<img src="'+escapeHtml(prod.infoImage)+'" draggable="false">'+
+      '<div class="ci-handle ci-h-nw" data-dir="nw"></div>'+
+      '<div class="ci-handle ci-h-n" data-dir="n"></div>'+
+      '<div class="ci-handle ci-h-ne" data-dir="ne"></div>'+
+      '<div class="ci-handle ci-h-e" data-dir="e"></div>'+
+      '<div class="ci-handle ci-h-se" data-dir="se"></div>'+
+      '<div class="ci-handle ci-h-s" data-dir="s"></div>'+
+      '<div class="ci-handle ci-h-sw" data-dir="sw"></div>'+
+      '<div class="ci-handle ci-h-w" data-dir="w"></div>'+
+    '</div>';
+    
+  body.innerHTML = infoImgHtml;
+  page.appendChild(body);
+
+  return page;
+}
+
+/* =========================================================
+   RENDER PRINCIPAL DE LA VISTA PREVIA
+========================================================= */
+function renderPreview(){
+  var contentPages = paginateCategories(state.categories);
+
+  var pageQueue = [];
+  var idx = 0;
+  while(idx < contentPages.length){
+    var cid = contentPages[idx].dataset.categoryId;
+    while(idx < contentPages.length && contentPages[idx].dataset.categoryId === cid){
+      pageQueue.push({node: contentPages[idx]});
+      idx++;
+    }
+    var cat = state.categories.filter(function(c){ return String(c.id) === String(cid); })[0];
+    if(cat && cat.type === 'products'){
+      cat.products.forEach(function(prod){
+        if(prod.infoImage && prod.infoImage.indexOf('data:') === 0){
+          pageQueue.push({infoPage: true, cat: cat, prod: prod});
+        }
+      });
+    }
+  }
+
+  var catFirstPage = {};
+  var infoPageMap = {}; 
+  var finalPages = [];
+  
+  var offset = 0;
+  if (state.company.showCover) offset++;
+  if (state.company.showIndex) offset++;
+  
+  pageQueue.forEach(function(item, i){
+    var pageNum = i + offset + 1;
+    if(item.infoPage){
+      infoPageMap[item.prod.id] = pageNum;
+      finalPages.push(buildInfoImagePage(item.cat, item.prod));
+    } else {
+      var cid2 = item.node.dataset.categoryId;
+      if(!(cid2 in catFirstPage)) catFirstPage[cid2] = pageNum;
+      finalPages.push(item.node);
+    }
+  });
+
+  var container = document.getElementById('catalog-content');
+  container.innerHTML = '';
+  
+  if(state.company.showCover) container.appendChild(buildCoverPage());
+  if(state.company.showIndex){
+    var indexPage = buildIndexPage(catFirstPage);
+    container.appendChild(indexPage);
+  }
+  finalPages.forEach(function(p){ container.appendChild(p); });
+
+  container.querySelectorAll('a.more-info-btn[data-product-id]').forEach(function(a){
+    var pid = a.getAttribute('data-product-id');
+    var pageNum = infoPageMap[pid];
+    if(pageNum){
+      a.setAttribute('data-target-page', pageNum);
+      a.href = 'javascript:void(0)';
+      a.removeAttribute('target');
+      a.onclick = function(){ scrollToPage(pageNum); };
+    }
+  });
+}
+
+function renderAll(){
+  // Llamamos a la función de autoguardado de la nube
+  autoSaveToCloud();
+  renderEditorPanel();
+  renderPreview();
+}
+
+/* =========================================================
+   PANEL DE EDICIÓN
+========================================================= */
+function setMode(mode){
+  document.getElementById('layout').className = 'mode-' + mode;
+  document.getElementById('previewModeBtn').classList.toggle('active', mode==='preview');
+  document.getElementById('editModeBtn').classList.toggle('active', mode==='edit');
+}
+
+var edGlobalOpen = true;
+var edOpenCats = {};      
+var edOpenSubs = {};       
+
+function toggleEdGlobal(){ edGlobalOpen = !edGlobalOpen; renderEditorPanel(); }
+function isCatOpen(ci){ return !!edOpenCats[ci]; }
+function toggleCatOpen(ci){ edOpenCats[ci] = !edOpenCats[ci]; renderEditorPanel(); }
+function isSubOpen(key){ return !!edOpenSubs[key]; }
+function toggleSubOpen(key){ edOpenSubs[key] = !edOpenSubs[key]; renderEditorPanel(); }
+
+function renderEditorPanel(){
+  var html = '';
+
+  html += '<div class="ed-intro"><i class="fa-solid fa-circle-info"></i>'+
+    '<span>Hacé clic en el título de cada sección para editar su contenido. ¡Tus cambios se guardan automáticamente en la nube!</span></div>';
+
+  html += '<div class="ed-section">';
+  html += '<div class="ed-section-head" onclick="toggleEdGlobal()">';
+  html += '<button class="ed-toggle-btn'+(edGlobalOpen?' is-open':'')+'"><i class="fa-solid fa-chevron-right"></i></button>';
+  html += '<span class="ed-section-title"><i class="fa-solid fa-building"></i> Datos generales y portada</span>';
+  html += '</div>';
+  if(edGlobalOpen){
+    html += '<div class="ed-section-body">';
+    html += '<div class="ed-global">';
+    
+    html += '<div class="ed-field ed-checkbox"><input type="checkbox" '+(state.company.showCover?'checked':'')+' onchange="updateCompanyField(\'showCover\', this.checked)"> <label>Mostrar página de portada</label></div>';
+    html += '<div class="ed-field ed-checkbox"><input type="checkbox" '+(state.company.showIndex?'checked':'')+' onchange="updateCompanyField(\'showIndex\', this.checked)"> <label>Mostrar página de índice (Si se oculta, no habrá botones de "Volver al índice")</label></div>';
+    
+    html += '<div class="ed-field"><label>Número de WhatsApp (con código de país, sin +)</label>'+
+      '<input type="text" value="'+escapeHtml(state.whatsapp)+'" oninput="updateWhatsapp(this.value)"></div>';
+    html += '<div class="ed-field"><label>Nombre de la empresa</label>'+
+      '<input type="text" value="'+escapeHtml(state.company.name)+'" oninput="updateCompanyField(\'name\', this.value)"></div>';
+    html += '<div class="ed-field"><label>Subtítulo de portada</label>'+
+      '<input type="text" value="'+escapeHtml(state.company.subtitle)+'" oninput="updateCompanyField(\'subtitle\', this.value)"></div>';
+    html += '<div class="ed-field"><label>Dirección</label>'+
+      '<input type="text" value="'+escapeHtml(state.company.address)+'" oninput="updateCompanyField(\'address\', this.value)"></div>';
+    html += '<div class="ed-field"><label>Teléfono</label>'+
+      '<input type="text" value="'+escapeHtml(state.company.phone)+'" oninput="updateCompanyField(\'phone\', this.value)"></div>';
+    html += '<div class="ed-field"><label>Sitio web</label>'+
+      '<input type="text" value="'+escapeHtml(state.company.web)+'" oninput="updateCompanyField(\'web\', this.value)"></div>';
+    html += renderImageField('Imagen de portada (opcional)', state.company.coverImage, "updateCompanyField('coverImage', this.value)", 'cover', 'cover');
+    if(state.company.coverImage){
+      html += '<div class="ed-field"><label style="margin-bottom:0;">Tamaño y posición</label>'+
+        '<p style="font-size:12px; color:var(--text-muted); margin:2px 0 0;">Andá al modo <b>Vista previa</b> y arrastrá la imagen de portada o sus puntos para moverla, alargarla o recortarla.</p></div>';
+    }
+    html += '</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  var elTypeMeta = {
+    subtitle:{label:'Subtítulo', icon:'fa-solid fa-heading'},
+    paragraph:{label:'Párrafo', icon:'fa-solid fa-align-left'},
+    tagline:{label:'Frase destacada', icon:'fa-solid fa-quote-right'},
+    values:{label:'Lista de valores', icon:'fa-solid fa-list-check'},
+    metrics:{label:'Métricas', icon:'fa-solid fa-chart-simple'},
+    image:{label:'Imagen', icon:'fa-solid fa-image'},
+    cta:{label:'Botón de WhatsApp', icon:'fa-brands fa-whatsapp'}
+  };
+
+  function renderValuesEditor(ci,bi,ei,items){
+    var out = (items||[]).map(function(it,ii){
+      return '<div class="ed-subitem-row">'+
+        '<input type="text" placeholder="Título" value="'+escapeHtml(it.title||'')+'" oninput="updateValueItem('+ci+','+bi+','+ei+','+ii+',\'title\', this.value)">'+
+        '<input type="text" placeholder="Descripción" value="'+escapeHtml(it.text||'')+'" oninput="updateValueItem('+ci+','+bi+','+ei+','+ii+',\'text\', this.value)">'+
+        '<button class="ed-icon-btn danger" title="Quitar ítem" onclick="removeValueItem('+ci+','+bi+','+ei+','+ii+')"><i class="fa-solid fa-xmark"></i></button>'+
+      '</div>';
+    }).join('');
+    out += '<button class="ed-add-btn" onclick="addValueItem('+ci+','+bi+','+ei+')"><i class="fa-solid fa-plus"></i> Agregar ítem</button>';
+    return out;
+  }
+  function renderMetricsEditor(ci,bi,ei,items){
+    var out = '<div class="ed-hint">Completá cada campo por separado.</div>';
+    out += (items||[]).map(function(it,ii){
+      return '<div class="ed-subitem-row">'+
+        '<input type="text" class="narrow" placeholder="Número" value="'+escapeHtml(it.num||'')+'" oninput="updateMetricItem('+ci+','+bi+','+ei+','+ii+',\'num\', this.value)">'+
+        '<input type="text" placeholder="Etiqueta" value="'+escapeHtml(it.label||'')+'" oninput="updateMetricItem('+ci+','+bi+','+ei+','+ii+',\'label\', this.value)">'+
+        '<input type="text" placeholder="Descripción" value="'+escapeHtml(it.desc||'')+'" oninput="updateMetricItem('+ci+','+bi+','+ei+','+ii+',\'desc\', this.value)">'+
+        '<button class="ed-icon-btn danger" title="Quitar métrica" onclick="removeMetricItem('+ci+','+bi+','+ei+','+ii+')"><i class="fa-solid fa-xmark"></i></button>'+
+      '</div>';
+    }).join('');
+    out += '<button class="ed-add-btn" onclick="addMetricItem('+ci+','+bi+','+ei+')"><i class="fa-solid fa-plus"></i> Agregar métrica</button>';
+    return out;
+  }
+
+  state.categories.forEach(function(cat, ci){
+    var catOpen = isCatOpen(ci);
+    var countLabel = cat.type==='products' ? (cat.products.length+' producto'+(cat.products.length===1?'':'s')) : (cat.blocks.length+' bloque'+(cat.blocks.length===1?'':'s'));
+    html += '<div class="ed-category">';
+    html += '<div class="ed-category-head">';
+    html += '<button class="ed-toggle-btn'+(catOpen?' is-open':'')+'" title="Expandir/Contraer" onclick="toggleCatOpen('+ci+')"><i class="fa-solid fa-chevron-right"></i></button>';
+    html += '<button class="ed-icon-btn" title="Subir" onclick="moveCategory('+ci+',-1)"><i class="fa-solid fa-arrow-up"></i></button>';
+    html += '<button class="ed-icon-btn" title="Bajar" onclick="moveCategory('+ci+',1)"><i class="fa-solid fa-arrow-down"></i></button>';
+    html += '<input type="text" value="'+escapeHtml(cat.title)+'" oninput="updateCategoryTitle('+ci+', this.value)">';
+    html += '<span class="cat-type-badge">'+(cat.type==='products'?'Productos':'Servicios')+'</span>';
+    html += '<button class="ed-icon-btn'+(cat.visible?' active':'')+'" title="Mostrar/Ocultar" onclick="toggleCategoryVisible('+ci+')"><i class="fa-solid '+(cat.visible?'fa-eye':'fa-eye-slash')+'"></i></button>';
+    html += '<button class="ed-icon-btn danger" title="Eliminar categoría" onclick="removeCategory('+ci+')"><i class="fa-solid fa-trash"></i></button>';
+    html += '</div>';
+
+    if(!catOpen){
+      html += '<div class="ed-category-body" style="padding:8px 12px;"><span class="ed-section-sub">'+countLabel+' · hacé clic en la flecha para editar</span></div>';
+      html += '</div>';
+      return;
+    }
+
+    html += '<div class="ed-category-body">';
+
+    if(cat.type === 'products'){
+      cat.products.forEach(function(prod, pi){
+        var key = 'p_'+ci+'_'+pi;
+        var subOpen = isSubOpen(key);
+        html += '<div class="ed-sub-collapsible">';
+        html += '<div class="ed-sub-head">';
+        html += '<button class="ed-toggle-btn'+(subOpen?' is-open':'')+'" onclick="toggleSubOpen(\''+key+'\')"><i class="fa-solid fa-chevron-right"></i></button>';
+        html += '<input type="text" placeholder="Nombre del producto" value="'+escapeHtml(prod.name)+'" oninput="updateProductField('+ci+','+pi+',\'name\', this.value)">';
+        html += '<button class="ed-icon-btn'+(prod.visible?' active':'')+'" title="Mostrar/Ocultar" onclick="toggleProductVisible('+ci+','+pi+')"><i class="fa-solid '+(prod.visible?'fa-eye':'fa-eye-slash')+'"></i></button>';
+        html += '<button class="ed-icon-btn danger" title="Eliminar producto" onclick="removeProduct('+ci+','+pi+')"><i class="fa-solid fa-trash"></i></button>';
+        html += '</div>';
+        if(subOpen){
+          html += '<div class="ed-sub-body">';
+          html += '<div class="ed-field"><label>Especificaciones (una por línea)</label>'+
+            '<textarea rows="4" oninput="updateProductSpecs('+ci+','+pi+', this.value)">'+escapeHtml((prod.specs||[]).join('\n'))+'</textarea></div>';
+          html += renderImageField('Imagen del producto', prod.image, "updateProductField("+ci+","+pi+",'image', this.value)", 'product:'+ci+':'+pi, 'prod_'+ci+'_'+pi);
+          html += renderImageField('Imagen de Más Info', prod.infoImage, "updateProductField("+ci+","+pi+",'infoImage', this.value)", 'infoimg:'+ci+':'+pi, 'info_'+ci+'_'+pi);
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+      html += '<button class="ed-add-btn" onclick="addProduct('+ci+')"><i class="fa-solid fa-plus"></i> Agregar producto</button>';
+    } else {
+      cat.blocks.forEach(function(block, bi){
+        var key = 'b_'+ci+'_'+bi;
+        var subOpen = isSubOpen(key);
+        html += '<div class="ed-sub-collapsible">';
+        html += '<div class="ed-sub-head">';
+        html += '<button class="ed-toggle-btn'+(subOpen?' is-open':'')+'" onclick="toggleSubOpen(\''+key+'\')"><i class="fa-solid fa-chevron-right"></i></button>';
+        html += '<input type="text" placeholder="Título del bloque" value="'+escapeHtml(block.heading||'')+'" oninput="updateBlockField('+ci+','+bi+',\'heading\', this.value)">';
+        html += '<button class="ed-icon-btn danger" title="Eliminar bloque" onclick="removeContentBlock('+ci+','+bi+')"><i class="fa-solid fa-trash"></i></button>';
+        html += '</div>';
+
+        if(subOpen){
+          html += '<div class="ed-sub-body">';
+          (block.elements||[]).forEach(function(el, ei){
+            var meta = elTypeMeta[el.type] || {label:el.type, icon:'fa-solid fa-circle'};
+            html += '<div class="ed-element">';
+            html += '<div class="ed-element-head">';
+            html += '<span class="ed-element-type"><i class="'+meta.icon+'"></i> '+meta.label+'</span>';
+            html += '<button class="ed-icon-btn" title="Subir" onclick="moveElement('+ci+','+bi+','+ei+',-1)"><i class="fa-solid fa-arrow-up"></i></button>';
+            html += '<button class="ed-icon-btn" title="Bajar" onclick="moveElement('+ci+','+bi+','+ei+',1)"><i class="fa-solid fa-arrow-down"></i></button>';
+            html += '<button class="ed-icon-btn danger" title="Quitar" onclick="removeElement('+ci+','+bi+','+ei+')"><i class="fa-solid fa-trash"></i></button>';
+            html += '</div>';
+
+            switch(el.type){
+              case 'subtitle':
+                html += '<input type="text" placeholder="Subtítulo" value="'+escapeHtml(el.text||'')+'" oninput="updateElementField('+ci+','+bi+','+ei+',\'text\', this.value)">';
+                break;
+              case 'paragraph':
+                html += '<textarea rows="3" placeholder="Texto del párrafo" oninput="updateElementField('+ci+','+bi+','+ei+',\'text\', this.value)">'+escapeHtml(el.text||'')+'</textarea>';
+                break;
+              case 'tagline':
+                html += '<input type="text" placeholder="Frase destacada" value="'+escapeHtml(el.text||'')+'" oninput="updateElementField('+ci+','+bi+','+ei+',\'text\', this.value)">';
+                break;
+              case 'values':
+                html += renderValuesEditor(ci,bi,ei, el.items);
+                break;
+              case 'metrics':
+                html += renderMetricsEditor(ci,bi,ei, el.items);
+                break;
+              case 'image':
+                html += renderImageField('Imagen', el.src, "updateElementField("+ci+","+bi+","+ei+",'src', this.value)", 'element:'+ci+':'+bi+':'+ei, 'el_'+ci+'_'+bi+'_'+ei);
+                html += '<div class="ed-field"><label>Descripción / pie de foto (opcional)</label>'+
+                  '<input type="text" value="'+escapeHtml(el.caption||'')+'" oninput="updateElementField('+ci+','+bi+','+ei+',\'caption\', this.value)"></div>';
+                break;
+              case 'cta':
+                html += '<div class="ed-field"><label>Texto del botón</label>'+
+                  '<input type="text" value="'+escapeHtml(el.label||'')+'" oninput="updateElementField('+ci+','+bi+','+ei+',\'label\', this.value)"></div>';
+                html += '<div class="ed-field"><label>Mensaje prellenado de WhatsApp</label>'+
+                  '<input type="text" value="'+escapeHtml(el.message||'')+'" oninput="updateElementField('+ci+','+bi+','+ei+',\'message\', this.value)"></div>';
+                break;
+            }
+            html += '</div>';
+          });
+
+          html += '<div class="ed-hint">Agregar elemento a este bloque:</div>';
+          html += '<div class="ed-chip-row">';
+          ['subtitle','paragraph','values','metrics','image','cta','tagline'].forEach(function(t){
+            var meta = elTypeMeta[t];
+            html += '<button class="ed-chip-btn" onclick="addElement('+ci+','+bi+',\''+t+'\')"><i class="'+meta.icon+'"></i> '+meta.label+'</button>';
+          });
+          html += '</div>';
+          html += '</div>';
+        }
+
+        html += '</div>';
+      });
+      html += '<button class="ed-add-btn" onclick="addContentBlock('+ci+')"><i class="fa-solid fa-plus"></i> Agregar bloque de servicio</button>';
+    }
+
+    html += '</div></div>';
+  });
+
+  html += '<div class="ed-hint">Agregar nueva categoría:</div>';
+  html += '<div class="ed-add-cat-row">';
+  html += '<button class="ed-add-btn" onclick="addCategory(\'products\')"><i class="fa-solid fa-box"></i> Categoría de Productos</button>';
+  html += '<button class="ed-add-btn" onclick="addCategory(\'content\')"><i class="fa-solid fa-file-lines"></i> Categoría de Servicios</button>';
+  html += '</div>';
+
+  document.getElementById('editorPanelInner').innerHTML = html;
+}
+
+/* ---- Acciones del editor: globales ---- */
+function updateWhatsapp(v){ state.whatsapp = v.replace(/[^0-9]/g,''); renderPreview(); autoSaveToCloud(); }
+function updateCompanyField(field, v){ state.company[field] = v; renderPreview(); autoSaveToCloud(); }
+
+/* ---- Acciones del editor: categorías ---- */
+function addCategory(type){
+  var cat = { id: uid(), title: type==='products' ? 'Nueva categoría de productos' : 'Nueva categoría de servicios', type: type, visible: true, icon: 'fa-box' };
+  if(type==='products'){ cat.products = []; } else { cat.blocks = []; }
+  state.categories.push(cat);
+  renderAll();
+}
+function removeCategory(ci){
+  if(!confirm('¿Eliminar esta categoría completa?')) return;
+  state.categories.splice(ci,1);
+  renderAll();
+}
+function moveCategory(ci, dir){
+  var ni = ci + dir;
+  if(ni < 0 || ni >= state.categories.length) return;
+  var tmp = state.categories[ci];
+  state.categories[ci] = state.categories[ni];
+  state.categories[ni] = tmp;
+  renderAll();
+}
+function toggleCategoryVisible(ci){ state.categories[ci].visible = !state.categories[ci].visible; renderAll(); }
+function updateCategoryTitle(ci, v){ state.categories[ci].title = v; renderPreview(); autoSaveToCloud(); }
+
+/* ---- Acciones del editor: productos ---- */
+function addProduct(ci){
+  state.categories[ci].products.push({id:uid(), name:'Nuevo producto', image:'', infoImage:'', visible:true, specs:['Especificación 1']});
+  renderAll();
+}
+function removeProduct(ci, pi){
+  state.categories[ci].products.splice(pi,1);
+  renderAll();
+}
+function toggleProductVisible(ci, pi){
+  var p = state.categories[ci].products[pi];
+  p.visible = !p.visible;
+  renderAll();
+}
+function updateProductField(ci, pi, field, v){
+  state.categories[ci].products[pi][field] = v;
+  renderPreview(); autoSaveToCloud();
+}
+function updateProductSpecs(ci, pi, v){
+  state.categories[ci].products[pi].specs = v.split('\n');
+  renderPreview(); autoSaveToCloud();
+}
+
+/* ---- Acciones del editor: bloques de servicios ---- */
+function addContentBlock(ci){
+  state.categories[ci].blocks.push({heading:'Nuevo bloque', elements:[{type:'paragraph', text:'Escribí el texto acá...'}]});
+  renderAll();
+}
+function removeContentBlock(ci, bi){
+  state.categories[ci].blocks.splice(bi,1);
+  renderAll();
+}
+function updateBlockField(ci, bi, field, v){
+  state.categories[ci].blocks[bi][field] = v;
+  renderPreview(); autoSaveToCloud();
+}
+
+/* ---- Acciones del editor: elementos del bloque ---- */
+function addElement(ci, bi, type){
+  var el;
+  switch(type){
+    case 'subtitle': el = {type:'subtitle', text:'Subtítulo'}; break;
+    case 'paragraph': el = {type:'paragraph', text:'Escribí el texto acá...'}; break;
+    case 'tagline': el = {type:'tagline', text:'Frase destacada'}; break;
+    case 'values': el = {type:'values', items:[{title:'Título', text:'Descripción'}]}; break;
+    case 'metrics': el = {type:'metrics', items:[{num:'100', label:'ETIQUETA', desc:'Descripción'}]}; break;
+    case 'image': el = {type:'image', src:'', caption:''}; break;
+    case 'cta': el = {type:'cta', label:'CONSULTAR POR WHATSAPP', message:'Hola, quiero más información.'}; break;
+    default: return;
+  }
+  state.categories[ci].blocks[bi].elements.push(el);
+  renderAll();
+}
+function removeElement(ci, bi, ei){
+  state.categories[ci].blocks[bi].elements.splice(ei,1);
+  renderAll();
+}
+function moveElement(ci, bi, ei, dir){
+  var arr = state.categories[ci].blocks[bi].elements;
+  var ni = ei + dir;
+  if(ni < 0 || ni >= arr.length) return;
+  var tmp = arr[ei]; arr[ei] = arr[ni]; arr[ni] = tmp;
+  renderAll();
+}
+function updateElementField(ci, bi, ei, field, v){
+  state.categories[ci].blocks[bi].elements[ei][field] = v;
+  renderPreview(); autoSaveToCloud();
+}
+function addValueItem(ci, bi, ei){
+  state.categories[ci].blocks[bi].elements[ei].items.push({title:'', text:''});
+  renderAll();
+}
+function removeValueItem(ci, bi, ei, ii){
+  state.categories[ci].blocks[bi].elements[ei].items.splice(ii,1);
+  renderAll();
+}
+function updateValueItem(ci, bi, ei, ii, field, v){
+  state.categories[ci].blocks[bi].elements[ei].items[ii][field] = v;
+  renderPreview(); autoSaveToCloud();
+}
+function addMetricItem(ci, bi, ei){
+  state.categories[ci].blocks[bi].elements[ei].items.push({num:'', label:'', desc:''});
+  renderAll();
+}
+function removeMetricItem(ci, bi, ei, ii){
+  state.categories[ci].blocks[bi].elements[ei].items.splice(ii,1);
+  renderAll();
+}
+function updateMetricItem(ci, bi, ei, ii, field, v){
+  state.categories[ci].blocks[bi].elements[ei].items[ii][field] = v;
+  renderPreview(); autoSaveToCloud();
+}
+
+function resetCatalog(){
+  if(!confirm('Esto va a descartar todos los cambios y volver al catálogo original. ¿Continuar?')) return;
+  state = migrateState(defaultState());
+  renderAll();
+}
+
+/* =========================================================
+   EXPORTACIÓN A PDF (con índice y botones funcionando)
+========================================================= */
+function addAllPdfLinks(pdf, pages){
+  pages.forEach(function(pageEl, idx){
+    var pageNumber = idx + 1;
+    var pageRect = pageEl.getBoundingClientRect();
+    pdf.setPage(pageNumber);
+    pageEl.querySelectorAll('a.link-annot').forEach(function(a){
+      var rect = a.getBoundingClientRect();
+      var x = rect.left - pageRect.left;
+      var y = rect.top - pageRect.top;
+      var w = rect.width;
+      var h = rect.height;
+      if(w <= 0 || h <= 0) return;
+
+      var targetPage = a.getAttribute('data-target-page');
+      if(targetPage){
+        pdf.link(x, y, w, h, { pageNumber: parseInt(targetPage, 10) });
+      } else {
+        var href = a.getAttribute('href') || '';
+        if(/^(https?:|tel:|mailto:)/i.test(href)){
+          pdf.link(x, y, w, h, { url: href });
+        }
+      }
+    });
+  });
+}
+
+async function exportToPDF(){
+  renderPreview();
+
+  var container = document.getElementById('catalog-content');
+  var pages = Array.prototype.slice.call(container.children);
+  var btn = document.getElementById('exportBtn');
+  var originalLabel = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando PDF...';
+  btn.disabled = true;
+  container.classList.add('exporting');
+
+  try{
+    var jsPDFCtor = window.jspdf.jsPDF;
+    var pdf = new jsPDFCtor({ unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait' });
+
+    for(var i = 0; i < pages.length; i++){
+      var pageEl = pages[i];
+      var pageHeightPx = Math.max(PAGE_H, Math.ceil(pageEl.getBoundingClientRect().height));
+      var canvas = await html2canvas(pageEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        width: PAGE_W,
+        height: pageHeightPx,
+        windowWidth: PAGE_W
+      });
+      var imgData = canvas.toDataURL('image/jpeg', 0.96);
+      if(i > 0){ pdf.addPage([PAGE_W, PAGE_H], 'portrait'); }
+      pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W, PAGE_H);
+    }
+
+    addAllPdfLinks(pdf, pages);
+    pdf.save('Neyra_Servicios_Catalogo.pdf');
+  } catch(err){
+    console.error('Error generando PDF:', err);
+    alert('Ocurrió un error al generar el PDF. Revisá la consola para más detalles.');
+  } finally {
+    container.classList.remove('exporting');
+    btn.innerHTML = originalLabel;
+    btn.disabled = false;
+  }
+}
+
+/* =========================================================
+   SISTEMA DE ARRASTRE DE IMÁGENES (PORTADA Y MAS INFO)
+========================================================= */
+var ciDrag = null;
+
+function clampNum(v, min, max){ return Math.min(Math.max(v, min), max); }
+
+function isPreviewMode(){
+  var layout = document.getElementById('layout');
+  return !!layout && layout.classList.contains('mode-preview');
+}
+
+function updateImageFrameStyle(frame, obj, wProp, hProp, xProp, yProp){
+  if(!frame) return;
+  frame.style.left = obj[xProp] + 'px';
+  frame.style.top = obj[yProp] + 'px';
+  frame.style.width = obj[wProp] + 'px';
+  frame.style.height = obj[hProp] + 'px';
+}
+
+function coverPointerPos(e){
+  if(e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  if(e.changedTouches && e.changedTouches.length) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+  return { x: e.clientX, y: e.clientY };
+}
+
+function onCoverPointerDown(e){
+  if(!isPreviewMode()) return;
+  var target = e.target;
+  if(!target || !target.closest) return;
+  var handle = target.closest('.ci-handle');
+  var frame = target.closest('.image-frame');
+  if(!frame) return;
+  
+  var type = frame.getAttribute('data-frame-type');
+  var obj, xProp, yProp, wProp, hProp;
+  
+  if(type === 'cover'){
+    obj = state.company;
+    xProp = 'coverImageX'; yProp = 'coverImageY'; wProp = 'coverImageW'; hProp = 'coverImageH';
+  } else if (type === 'info') {
+    var cid = frame.getAttribute('data-c-id');
+    var pid = frame.getAttribute('data-p-id');
+    var cat = state.categories.filter(function(c){ return String(c.id) === String(cid); })[0];
+    obj = cat.products.filter(function(p){ return String(p.id) === String(pid); })[0];
+    xProp = 'infoImageX'; yProp = 'infoImageY'; wProp = 'infoImageW'; hProp = 'infoImageH';
+  }
+
+  var pos = coverPointerPos(e);
+  ciDrag = {
+    type: handle ? 'resize' : 'move',
+    dir: handle ? handle.getAttribute('data-dir') : null,
+    obj: obj, xProp: xProp, yProp: yProp, wProp: wProp, hProp: hProp,
+    startX: pos.x,
+    startY: pos.y,
+    start: { x: obj[xProp], y: obj[yProp], w: obj[wProp], h: obj[hProp] },
+    frame: frame
+  };
+  e.preventDefault();
+}
+
+function onCoverPointerMove(e){
+  if(!ciDrag) return;
+  var pos = coverPointerPos(e);
+  var dx = pos.x - ciDrag.startX;
+  var dy = pos.y - ciDrag.startY;
+  var s = ciDrag.start;
+  var MIN = 30;
+
+  if(ciDrag.type === 'move'){
+    ciDrag.obj[ciDrag.xProp] = clampNum(s.x + dx, -(s.w - 40), PAGE_W - 40);
+    ciDrag.obj[ciDrag.yProp] = clampNum(s.y + dy, -(s.h - 40), PAGE_H - 40);
+  } else {
+    var dir = ciDrag.dir || '';
+    var newX = s.x, newY = s.y, newW = s.w, newH = s.h;
+    var isCorner = (dir === 'nw' || dir === 'ne' || dir === 'se' || dir === 'sw');
+    if(isCorner){
+      var ratio = s.w / s.h;
+      var deltaW = dir.indexOf('e') >= 0 ? dx : (dir.indexOf('w') >= 0 ? -dx : 0);
+      var deltaH = dir.indexOf('s') >= 0 ? dy : (dir.indexOf('n') >= 0 ? -dy : 0);
+      if(Math.abs(deltaW) > Math.abs(deltaH * ratio)){
+        newW = Math.max(MIN, s.w + deltaW);
+        newH = Math.max(MIN, newW / ratio);
+      } else {
+        newH = Math.max(MIN, s.h + deltaH);
+        newW = Math.max(MIN, newH * ratio);
+      }
+      newX = dir.indexOf('w') >= 0 ? s.x + (s.w - newW) : s.x;
+      newY = dir.indexOf('n') >= 0 ? s.y + (s.h - newH) : s.y;
+    } else {
+      if(dir.indexOf('e') >= 0){ newW = Math.max(MIN, s.w + dx); }
+      if(dir.indexOf('w') >= 0){ newW = Math.max(MIN, s.w - dx); newX = s.x + (s.w - newW); }
+      if(dir.indexOf('s') >= 0){ newH = Math.max(MIN, s.h + dy); }
+      if(dir.indexOf('n') >= 0){ newH = Math.max(MIN, s.h - dy); newY = s.y + (s.h - newH); }
+    }
+    ciDrag.obj[ciDrag.xProp] = newX; ciDrag.obj[ciDrag.yProp] = newY; 
+    ciDrag.obj[ciDrag.wProp] = newW; ciDrag.obj[ciDrag.hProp] = newH;
+  }
+  
+  updateImageFrameStyle(ciDrag.frame, ciDrag.obj, ciDrag.wProp, ciDrag.hProp, ciDrag.xProp, ciDrag.yProp);
+  e.preventDefault();
+  
+  autoSaveToCloud(); // Guarda al soltar/mover imágenes
+}
+
+function onCoverPointerUp(){
+  ciDrag = null;
+}
+
+(function initCoverImageDrag(){
+  var content = document.getElementById('catalog-content');
+  content.addEventListener('mousedown', onCoverPointerDown);
+  content.addEventListener('touchstart', onCoverPointerDown, { passive:false });
+  document.addEventListener('mousemove', onCoverPointerMove);
+  document.addEventListener('touchmove', onCoverPointerMove, { passive:false });
+  document.addEventListener('mouseup', onCoverPointerUp);
+  document.addEventListener('touchend', onCoverPointerUp);
+  document.addEventListener('touchcancel', onCoverPointerUp);
+})();
+
+</script>
+</body>
+</html>
