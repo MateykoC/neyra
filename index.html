@@ -636,6 +636,16 @@ function waLink(message){
   return 'https://wa.me/' + encodeURIComponent(state.whatsapp) + '?text=' + encodeURIComponent(message||'');
 }
 
+/* Convierte links de Google Drive a link directo de imagen */
+function driveImg(url){
+  if(!url) return '';
+  var m = url.match(/drive\.google\.com\/file\/d\/([^\/?#]+)/)
+       || url.match(/drive\.google\.com\/(?:open|uc|thumbnail)\?(?:[^#]*&)?id=([^&#]+)/)
+       || url.match(/docs\.google\.com\/.*\/d\/([^\/?#]+)/);
+  if(m) return 'https://lh3.googleusercontent.com/d/' + m[1] + '=w1200';
+  return url;
+}
+
 function getIndexPageNum() {
   return state.company.showCover ? 2 : 1;
 }
@@ -649,7 +659,7 @@ function renderImageField(label, value, urlOninput, uploadTarget, idSuffix){
   html += '<label class="ed-upload-btn" for="'+fileId+'"><i class="fa-solid fa-upload"></i> Subir archivo (No usar en Firebase)</label>';
   html += '<input type="file" id="'+fileId+'" accept="image/*" style="display:none" onchange="readImageFile(this, \''+uploadTarget+'\')">';
   html += '</div>';
-  if(value) html += '<img class="ed-image-preview" src="'+escapeHtml(value)+'">';
+  if(value) html += '<img class="ed-image-preview" referrerpolicy="no-referrer" src="'+escapeHtml(driveImg(value))+'">';
   html += '</div>';
   return html;
 }
@@ -678,8 +688,8 @@ function readImageFile(inputEl, target){
 ========================================================= */
 function buildProductCardHTML(cat, prod){
   var media = prod.image
-    ? '<img class="product-img" src="'+escapeHtml(prod.image)+'" alt="'+escapeHtml(prod.name)+'">'
-    : '<div class="media-icon"><i class="fa-solid '+escapeHtml(cat.icon||'fa-box')+'"></i></div>';
+  ? '<img class="product-img" referrerpolicy="no-referrer" src="'+escapeHtml(driveImg(prod.image))+'" alt="'+escapeHtml(prod.name)+'">'
+  : '<div class="media-icon"><i class="fa-solid '+escapeHtml(cat.icon||'fa-box')+'"></i></div>';
   
   var specsHtml = (prod.specs||[]).filter(function(s){return s.trim()!=='';}).map(function(s){
     return '<li>'+escapeHtml(s)+'</li>';
@@ -733,7 +743,7 @@ function buildContentBlockHTML(block){
         break;
       case 'image':
         if(el.src){
-          html += '<img class="block-image" src="'+escapeHtml(el.src)+'">';
+          html += '<img class="block-image" referrerpolicy="no-referrer" src="'+escapeHtml(driveImg(el.src))+'">';
           if(el.caption) html += '<div class="block-image-caption">'+escapeHtml(el.caption)+'</div>';
         }
         break;
@@ -852,7 +862,7 @@ function buildCoverPage(){
   var coverImgHtml = state.company.coverImage
     ? '<div class="image-frame" data-frame-type="cover" title="Arrastrá para mover · tirá de los puntos para cambiar el tamaño" '+
         'style="left:'+state.company.coverImageX+'px; top:'+state.company.coverImageY+'px; width:'+state.company.coverImageW+'px; height:'+state.company.coverImageH+'px;">'+
-        '<img src="'+escapeHtml(state.company.coverImage)+'" draggable="false">'+
+        '<img referrerpolicy="no-referrer" src="'+escapeHtml(driveImg(state.company.coverImage))+'" draggable="false">'+
         '<div class="ci-handle ci-h-nw" data-dir="nw"></div>'+
         '<div class="ci-handle ci-h-n" data-dir="n"></div>'+
         '<div class="ci-handle ci-h-ne" data-dir="ne"></div>'+
